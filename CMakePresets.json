@@ -1,0 +1,19 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "OpenDynamo",
+            "displayName": "Clang 20.1.8 x86_64-redhat-linux-gnu",
+            "description": "Using compilers: C = /usr/lib64/ccache/clang, CXX = /usr/lib64/ccache/clang++",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "/usr/lib64/ccache/clang",
+                "CMAKE_CXX_COMPILER": "/usr/lib64/ccache/clang++",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-std=c++23",
+                "CMAKE_CXX_STANDARD": "23"
+            }
+        }
+    ]
+}
