@@ -1,18 +1,15 @@
 #include "mesh.hpp"
 #include <iostream>
+#include <exception>
 
 
-Mesh::Mesh::Mesh(const std::string &mesh_file)
+Mesh::Mesh::Mesh(const std::string &mesh_file) : base_index(1), zone_index(1), mesh_first_index(1)
 {
     if (cg_open(mesh_file.c_str(), CG_MODE_READ, &file_index))
-        std::cerr << cg_get_error() << std::endl;
+        throw std::runtime_error("Could not open mesh file");
 
-    base_index = 1;
-    zone_index = 1;
+    cg_zone_read(file_index, base_index, zone_index, zone_name.data(), mesh_size[0].data());
 
-    cg_zone_read(file_index, base_index, zone_index, zone_name.data(), mesh_size[0]);
-
-    mesh_first_index = 1;
     mesh_last_index[0] = mesh_size[0][0];
     mesh_last_index[1] = mesh_size[0][1];
     mesh_last_index[2] = mesh_size[0][2];
@@ -23,7 +20,7 @@ Mesh::Mesh::Mesh(const std::string &mesh_file)
 
     cg_nbocos(file_index, base_index, zone_index, &number_of_boundaries);
 
-    for(int boundary_index = 0; boundary_index < number_of_boundaries; boundary_index++)
+    for (int boundary_index = 1; boundary_index <= number_of_boundaries; boundary_index++)
     {
         Boundary boundary;
         cg_boco_info(file_index, 
@@ -34,8 +31,8 @@ Mesh::Mesh::Mesh(const std::string &mesh_file)
             &boundary.type, 
             &boundary.pointset_type,
             &boundary.number_of_points,
-            &boundary.normal_index,
-            &boundary.normal_list_size,
+            boundary.normal_index.data(),
+            boundary.normal_vector.data(),
             &boundary.normal_data_type,
             boundary.dataset.data()
         );
