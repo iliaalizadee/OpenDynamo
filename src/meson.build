@@ -1,5 +1,3 @@
-sources = []
-sources += files('mesh.hpp')
-sources += files('main.cpp', 'mesh.cpp')
+sources = files('src/*')
 
 executable('OpenDynamo', sources)
