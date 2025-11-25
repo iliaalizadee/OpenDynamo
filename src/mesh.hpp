@@ -17,7 +17,7 @@ namespace Mesh
         CG_PointSetType_t pointset_type;
         cgsize_t number_of_points;
         std::array<int, 3> normal_index;
-        std::array<float, 3> normal_vector;
+        std::array<cgsize_t, 3> normal_vector;
         CG_DataType_t normal_data_type;
         std::vector<int> dataset;
     } Boundary;
