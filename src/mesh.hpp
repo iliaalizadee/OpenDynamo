@@ -1,46 +1,65 @@
-#ifndef MESH_H
-#define MESH_H
+#pragma once
 
 
 #include <cgnslib.h>
+#include <cgnstypes.h>
+#include <concepts>
 #include <string>
 #include <vector>
 #include <array>
+#include <cstdint>
 
 
-namespace Mesh
+namespace OpenDynamo
 {
-    typedef struct
+    template<typename T>
+    concept Floating = std::same_as<T, float> || std::same_as<T, double>;
+
+    template<Floating T>
+    struct Coordinate
+    {
+        std::string name;
+        std::vector<T> vertices;
+    };
+
+    template<Floating T>
+    struct Boundary
     {
         std::string name;
         CG_BCType_t type;
         CG_PointSetType_t pointset_type;
-        cgsize_t number_of_points;
-        std::array<int, 3> normal_index;
-        std::array<cgsize_t, 3> normal_vector;
-        CG_DataType_t normal_data_type;
-        std::vector<int> dataset;
-    } Boundary;
+        int64_t number_of_points;
+        std::array<int32_t, 3> normal_index;
+        int64_t normal_list_size;
+        int32_t number_of_datasets;
+        std::vector<int64_t> point_indices;
+        std::vector<T> normal_list;
+    };
 
+    template<Floating T>
+    struct Zone
+    {
+        int32_t index;
+        std::string name;
+        std::array<Coordinate<T>, 3> coordinates;
+        std::vector<Boundary<T>> boundaries;
+        std::array<int64_t, 9> size;
+        int32_t number_of_coordinate_arrays;
+        int32_t number_of_boundaries;
+        Zone(int32_t index) : index{index}{};
+    };
 
+    template<Floating T>
     class Mesh
     {
     private:
-        int file_index, base_index, zone_index;
-        std::string zone_name;
-        std::vector<std::vector<std::vector<double>>> coordinate_x, coordinate_y, coordinate_z;
-        std::vector<Boundary> boundaries;
-        std::array<std::array<cgsize_t, 3>, 3> mesh_size;
-        cgsize_t mesh_first_index;
-        std::array<cgsize_t, 3> mesh_last_index;
-        int number_of_boundaries;
-
+        int32_t file_index;
+        const int32_t base_index;
+        int32_t number_of_bases, number_of_zones;
+        std::vector<Zone<T>> zones;
 
     public:
-        Mesh(const std::string &mesh_file);
-        ~Mesh();
+        explicit Mesh(const std::string &mesh_file);
+        ~Mesh();   
     };
 }
-
-
-#endif

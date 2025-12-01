@@ -1,48 +1,143 @@
 #include "mesh.hpp"
-#include <iostream>
-#include <exception>
+#include <cgnslib.h>
+#include <cstdint>
+#include <cstring>
+#include <format>
+#include <stdexcept>
+#include <strings.h>
+#include <vector>
 
 
-Mesh::Mesh::Mesh(const std::string &mesh_file) : base_index(1), zone_index(1), mesh_first_index(1)
+template<OpenDynamo::Floating T>
+OpenDynamo::Mesh<T>::Mesh(const std::string &mesh_file) : base_index{1}
 {
-    if (cg_open(mesh_file.c_str(), CG_MODE_READ, &file_index))
-        throw std::runtime_error("Could not open mesh file");
+    
+    if (cg_open(mesh_file.c_str(), CG_MODE_READ, &file_index) != CG_OK)
+        throw std::runtime_error(std::format("Could not open mesh file {}", mesh_file));
 
-    cg_zone_read(file_index, base_index, zone_index, zone_name.data(), mesh_size[0].data());
-
-    mesh_last_index[0] = mesh_size[0][0];
-    mesh_last_index[1] = mesh_size[0][1];
-    mesh_last_index[2] = mesh_size[0][2];
-
-    cg_coord_read(file_index, base_index, zone_index, "COORD_X", CGNS_ENUMV(RealDouble), &mesh_first_index, &mesh_last_index[0], coordinate_x.data());
-    cg_coord_read(file_index, base_index, zone_index, "COORD_Y", CGNS_ENUMV(RealDouble), &mesh_first_index, &mesh_last_index[1], coordinate_y.data());
-    cg_coord_read(file_index, base_index, zone_index, "COORD_Z", CGNS_ENUMV(RealDouble), &mesh_first_index, &mesh_last_index[2], coordinate_z.data());
-
-    cg_nbocos(file_index, base_index, zone_index, &number_of_boundaries);
-
-    for (int boundary_index = 1; boundary_index <= number_of_boundaries; boundary_index++)
+    if (cg_nbases(file_index, &number_of_bases) != CG_OK)
     {
-        Boundary boundary;
-        cg_boco_info(file_index, 
-            base_index, 
-            zone_index, 
-            boundary_index, 
-            boundary.name.data(), 
-            &boundary.type, 
-            &boundary.pointset_type,
-            &boundary.number_of_points,
-            boundary.normal_index.data(),
-            boundary.normal_vector.data(),
-            &boundary.normal_data_type,
-            boundary.dataset.data()
-        );
-        
+        cg_close(file_index);
+        throw std::runtime_error("Invalid base count");
     }
 
-    cg_close(file_index);
+    if (number_of_bases != 1)
+    {
+        cg_close(file_index);
+        throw std::runtime_error("Only single-base meshes are supported");
+    }
+
+    if (cg_nzones(file_index, base_index, &number_of_zones) != CG_OK)
+    {
+        cg_close(file_index);
+        throw std::runtime_error("Invalid zone count");
+    }
+
+    for (int32_t i = 0; i < number_of_zones; i++)
+    {
+        Zone<T> &zone = zones.emplace_back(i + 1);
+        zone.name.resize(1024);
+
+        if (cg_zone_read(file_index, base_index, i + 1, zone.name.data(), zone.size.data()) != CG_OK)
+        {
+            cg_close(file_index);
+            throw std::runtime_error(std::format("Could not read zone {}", zone.index));
+        }
+
+        zone.name.resize(strlen(zone.name.data()));
+
+        if (cg_ncoords(file_index, base_index, zone.index, &zone.number_of_coordinate_arrays) != CG_OK)
+        {
+            cg_close(file_index);
+            throw std::runtime_error(std::format("Could not read the number of coordinate arrays for zone {}", zone.name));
+        }
+
+        if (zone.number_of_coordinate_arrays != 3)
+        {
+            cg_close(file_index);
+            throw std::runtime_error(std::format("Zone {} is not 3D", zone.name));
+        }
+
+        for (int32_t j = 0; j < zone.number_of_coordinate_arrays; j++)
+        {
+            zone.coordinates.at(j).name.resize(1024);
+
+            if (cg_coord_info(file_index, base_index, zone.index, j + 1, nullptr, zone.coordinates.at(j).name.data()) != CG_OK)
+            {
+                cg_close(file_index);
+                throw std::runtime_error(std::format("Could not read the number of coordinate arrays for zone {}", zone.name));
+            }
+            
+            zone.coordinates.at(j).name.resize(strlen(zone.coordinates.at(j).name.data()));
+
+            const int64_t number_of_vertices{zone.size.at(0) * zone.size.at(1) * zone.size.at(2)};
+            zone.coordinates.at(j).vertices.resize(number_of_vertices);
+
+            if (cg_coord_read(file_index, 
+                        base_index,
+                        zone.index, 
+                        zone.coordinates.at(j).name.c_str(), 
+                        CG_RealDouble, 
+                        std::array<int64_t, 3>{1,1,1}.data(), 
+                        zone.size.data(), 
+                        zone.coordinates.at(j).vertices.data()
+            ) != CG_OK)
+            {
+                cg_close(file_index);
+                throw std::runtime_error(std::format("Could not read vertex data for zone {}", zone.name));
+            }
+        }
+
+        if (cg_nbocos(file_index, base_index, zone.index, &zone.number_of_boundaries) != CG_OK)
+        {
+            cg_close(file_index);
+            throw std::runtime_error(std::format("Could not read the number of boundary conditions for zone {}", zone.name));
+        }
+
+        for (int32_t j = 0; j < zone.number_of_boundaries; j++)
+        {
+            Boundary<T> &boundary = zone.boundaries.emplace_back();
+            boundary.name.resize(1024);
+
+            if (cg_boco_info(file_index, 
+                        base_index, 
+                        zone.index, 
+                        j+1, 
+                        boundary.name.data(), 
+                        &boundary.type, 
+                        &boundary.pointset_type,
+                        &boundary.number_of_points,
+                        boundary.normal_index.data(),
+                        &boundary.normal_list_size,
+                        nullptr,
+                        &boundary.number_of_datasets
+            ) != CG_OK)
+            {
+                cg_close(file_index);
+                throw std::runtime_error(std::format("Could not read BC index {} info in zone {}", j + 1, zone.name));
+            }
+
+            boundary.name.resize(strlen(boundary.name.data()));
+            boundary.point_indices.resize(boundary.number_of_points * 3);
+            boundary.normal_list.resize(boundary.normal_list_size);
+
+            if (cg_boco_read(file_index, 
+                        base_index, 
+                        zone.index, 
+                        j + 1, 
+                        boundary.point_indices.data(), 
+                        boundary.normal_list.data()
+            ) != CG_OK)
+            {
+                cg_close(file_index);
+                throw std::runtime_error(std::format("Could not read BC index {} data in zone {}", j + 1, zone.name));
+            }
+        }
+    }
 }
 
-Mesh::Mesh::~Mesh()
+template<OpenDynamo::Floating T>
+inline OpenDynamo::Mesh<T>::~Mesh()
 {
-
+    cg_close(file_index);
 }
