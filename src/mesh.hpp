@@ -1,7 +1,6 @@
 #pragma once
 
 
-#include "src/concepts.hpp"
 #include <cgnslib.h>
 #include <cgnstypes.h>
 #include <string>
@@ -12,14 +11,12 @@
 
 namespace OpenDynamo
 {
-    template<Floating T>
     struct Coordinate
     {
         std::string name;
-        std::vector<T> vertices;
+        std::vector<double> vertices;
     };
 
-    template<Floating T>
     struct Boundary
     {
         std::string name;
@@ -29,32 +26,33 @@ namespace OpenDynamo
         std::array<int32_t, 3> normal_index;
         int32_t number_of_datasets;
         std::vector<int64_t> point_indices;
-        std::vector<T> normal_list;
+        std::vector<double> normal_list;
     };
 
-    template<Floating T>
+    
     struct Zone
     {
         int32_t index;
         std::string name;
-        std::array<Coordinate<T>, 3> coordinates;
-        std::vector<Boundary<T>> boundaries;
+        std::array<Coordinate, 3> coordinates;
+        std::vector<Boundary> boundaries;
         std::array<int64_t, 9> size;
-        explicit Zone(int32_t zone_index) : index{zone_index}{};
+
+        explicit Zone(int32_t index_in) : index{index_in}{};
     };
 
-    template<Floating T>
     class Mesh
     {
     private:
-        std::vector<Zone<T>> zones;
+        std::vector<Zone> zones;
 
     public:
-        explicit Mesh(std::vector<Zone<T>>&& zones) : zones{std::move(zones)}{};
+        explicit Mesh() = default;
+        explicit Mesh(std::vector<Zone> &&zones_in) : zones{std::move(zones_in)}{};
         ~Mesh() = default;
-        Mesh(const Mesh&) = delete;
-        Mesh& operator=(const Mesh&) = delete;
-        Mesh(Mesh&&) = default;
-        Mesh& operator=(Mesh&&) = default;
+        Mesh(const Mesh &) = delete;
+        Mesh &operator=(const Mesh &) = delete;
+        Mesh(Mesh &&) = default;
+        Mesh &operator=(Mesh &&) = default;
     };
 }

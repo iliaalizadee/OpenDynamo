@@ -7,8 +7,7 @@
 
 namespace OpenDynamo
 {
-    template<Floating T>
-    auto read_cgns_mesh(const std::string &mesh_file) -> std::expected<Mesh<T>, std::error_code>
+    auto read_cgns_mesh(const std::string &mesh_file) -> std::expected<Mesh, std::error_code>
     {
         const int32_t base_index{1};
 
@@ -36,10 +35,10 @@ namespace OpenDynamo
             return std::unexpected(std::make_error_code(std::errc::bad_file_descriptor));
         }
 
-        std::vector<Zone<T>> zones;
+        std::vector<Zone> zones;
         for (auto i = 0; i < number_of_zones; i++)
         {
-            Zone<T> &zone = zones.emplace_back(i + 1);
+            Zone &zone = zones.emplace_back(i + 1);
             zone.name.resize(1024);
 
             if (cg_zone_read(file_index, base_index, i + 1, zone.name.data(), zone.size.data()) != CG_OK)
@@ -98,7 +97,7 @@ namespace OpenDynamo
 
             for (auto j = 0; j < number_of_boundaries; j++)
             {
-                Boundary<T> &boundary = zone.boundaries.emplace_back();
+                Boundary &boundary = zone.boundaries.emplace_back();
                 boundary.name.resize(1024);
                 int64_t normal_list_size;
 
@@ -137,6 +136,6 @@ namespace OpenDynamo
             }
         }
         cg_close(file_index);
-        return Mesh<T>{std::move(zones)};
+        return Mesh{std::move(zones)};
     }
 }
